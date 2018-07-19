@@ -16,7 +16,8 @@ var CARELINK_TREND_TO_NIGHTSCOUT_TREND = {
 };
 
 function parsePumpTime(pumpTimeString, offset) {
-  return Date.parse(pumpTimeString + ' ' + offset);
+  //return Date.parse(pumpTimeString + ' ' + offset);
+    return Date.parse(pumpTimeString);
 }
 
 function timestampAsString(timestamp) {
@@ -24,7 +25,7 @@ function timestampAsString(timestamp) {
 }
 
 function deviceName(data) {
-  return 'connect://' + data['medicalDeviceFamily'].toLowerCase();
+  return data['medicalDeviceFamily'];
 }
 
 var guessPumpOffset = (function() {
@@ -35,12 +36,12 @@ var guessPumpOffset = (function() {
   // always close to a whole number of hours, and can be used to guess the pump's timezone:
   // https://gist.github.com/mddub/f673570e6427c93784bf
   return function(data) {
-    var pumpTimeAsIfUTC = Date.parse(data['sMedicalDeviceTime'] + ' +0');
+    var pumpTimeAsIfUTC = Date.parse(data['sMedicalDeviceTime'].slice(0,-6) + '+00:00');
     var serverTimeUTC = data['currentServerTime'];
     var hours = Math.round((pumpTimeAsIfUTC - serverTimeUTC) / (60*60*1000));
     var offset = (hours >= 0 ? '+' : '-') + (Math.abs(hours) < 10 ? '0' : '') + Math.abs(hours) + '00';
     if (offset !== lastGuess) {
-      logger.log('Guessed pump timezone ' + offset + ' (pump time: "' + data['sMedicalDeviceTime'] + '"; server time: ' + new Date(data['currentServerTime']) + ')');
+      logger.log('Guessed pump timezone ' + '+02:00' + ' (pump time: "' + data['sMedicalDeviceTime'] + '"; server time: ' + new Date(data['currentServerTime']) + ')');
     }
     lastGuess = offset;
     return offset;
@@ -48,11 +49,17 @@ var guessPumpOffset = (function() {
 })();
 
 function deviceStatusEntry(data, offset) {
+  if (data['medicalDeviceFamily'] === 'GUARDIAN') {
+    var bat = data['medicalDeviceBatteryLevelPercent'];
+  } else { 
+    var bat = data['conduitBatteryLevel'];
+  }
+    
   return {
     'created_at': timestampAsString(data['lastMedicalDeviceDataUpdateServerTime']),
     'device': deviceName(data),
     'uploader': {
-      'battery': data['conduitBatteryLevel'],
+      'battery': bat,
     },
     'pump': {
       'battery': {
